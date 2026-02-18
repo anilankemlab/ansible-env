@@ -1,0 +1,21 @@
+name: Terraform Proxmox Test
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  terraform:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan (Test API)
+        run: terraform plan
+        env:
+          TF_VAR_proxmox_api_url: ${{ secrets.PROXMOX_API_URL }}
+          TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
