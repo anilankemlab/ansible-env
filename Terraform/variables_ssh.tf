@@ -1,4 +1,4 @@
-ssh variable "proxmox_ssh_username" {
+variable "proxmox_ssh_username" {
   description = "Username for SSH connection to Proxmox"
   type        = string
   default     = "root"
