@@ -1,0 +1,103 @@
+name: Create Ansible ENV
+
+on:
+    workflow_dispatch:
+        inputs:
+            node_name:
+                description: "Proxmox node"
+                required: true
+                default: proxmox
+
+jobs:
+    create_env:
+        runs-on: self-hosted
+
+        defaults:
+            run:
+                working-directory: ./Terraform
+
+        env:
+            TF_IN_AUTOMATION: true
+            TF_VAR_proxmox_api_url: ${{ secrets.PROXMOX_API_URL }}
+            TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+            TF_VAR_node_name: proxmox
+            TF_VAR_proxmox_ssh_username: ${{ secrets.PROXMOX_SSH_USER }}
+            TF_VAR_proxmox_ssh_private_key: ${{ secrets.PROXMOX_SSH_KEY }}
+
+        steps:
+            ############################################################
+            # Checkout repository
+            ############################################################
+
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            ############################################################
+            # Setup SSH key (needed for Ansible and Terraform ssh connection)
+            ############################################################
+
+            - name: Setup SSH key
+              run: |
+                  mkdir -p ~/.ssh
+                  echo "${{ secrets.PROXMOX_SSH_KEY }}" > ~/.ssh/id_ed25519
+                  chmod 600 ~/.ssh/id_ed25519
+                  ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+                  ssh-keyscan -H ${{ secrets.PROXMOX_HOST }} >> ~/.ssh/known_hosts
+
+            ############################################################
+            # Terraform init
+            ############################################################
+
+            - name: Terraform init
+              run: terraform init -upgrade -input=false
+
+            ############################################################
+            # CREATE ubuntu VM (separate state)
+            ############################################################
+
+            - name: Create ubuntu VM
+              run: |
+                  terraform workspace select ubuntu || terraform workspace new ubuntu
+                  terraform apply -auto-approve -input=false
+              env:
+                  TF_VAR_vm_name: ubuntu1
+                  TF_VAR_template_name: ubuntu24-golden
+                  TF_VAR_vm_memory_mb: 2048
+                  TF_VAR_disk_size_gb: 20
+                  TF_VAR_ip_address: 192.168.1.30
+
+            ############################################################
+            # CREATE centos VM (separate state)
+            ############################################################
+
+            - name: Create centos VM
+              run: |
+                  terraform workspace select centos || terraform workspace new centos
+                  terraform apply -auto-approve -input=false
+              env:
+                  TF_VAR_vm_name: centos1
+                  TF_VAR_template_name: centos10-stream-golden
+                  TF_VAR_vm_memory_mb: 2048
+                  TF_VAR_disk_size_gb: 20
+                  TF_VAR_ip_address: 192.168.1.31
+
+            ############################################################
+            # RUN ANSIBLE PLAYBOOK
+            ############################################################
+
+            - name: Run Ansible Playbook
+              env:
+                  ANSIBLE_HOST_KEY_CHECKING: "False"
+              run: |
+                  echo "[newvm]" > inventory.ini
+                  echo "192.168.1.30" >> inventory.ini
+                  echo "192.168.1.31" >> inventory.ini
+                  sleep 10
+                  ansible-playbook -i inventory.ini ansible/bootstrap.yml --private-key ~/.ssh/id_ed25519 -u anilankem
+
+            ############################################################
+            # DONE
+            ############################################################
+
+            - name: Done
+              run: echo "Ansible ENV creation completed successfully"
