@@ -8,11 +8,6 @@ variable "proxmox_api_token" {
 }
 
 
-variable "ip_address" {
-  description = "Static IP address (optional)"
-  type        = string
-  default     = ""
-}
 
 variable "gateway" {
   description = "Default gateway"
@@ -33,15 +28,49 @@ variable "node_name" {
   default = "proxmox"
 }
 
-variable "vm_name" {
-  description = "Name of the VM to create"
-  type        = string
+
+variable "ubuntu_count" {
+  description = "Number of Ubuntu VMs to create (max 5)"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.ubuntu_count <= 5
+    error_message = "Max 5 Ubuntu VMs allowed."
+  }
 }
 
-variable "template_name" {
-  description = "Name of the Proxmox VM template to clone from (centos10-stream-golden) or (ubuntu24-golden)"
+variable "centos_count" {
+  description = "Number of CentOS VMs to create (max 5)"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.centos_count <= 5
+    error_message = "Max 5 CentOS VMs allowed."
+  }
+}
+
+variable "ubuntu_template" {
+  description = "Name of the Ubuntu Proxmox VM template"
   type        = string
   default     = "ubuntu24-golden"
+}
+
+variable "centos_template" {
+  description = "Name of the CentOS Proxmox VM template"
+  type        = string
+  default     = "centos10-stream-golden"
+}
+
+variable "ubuntu_ip_start" {
+  description = "Starting last octet for Ubuntu IPs"
+  type        = number
+  default     = 30
+}
+
+variable "centos_ip_start" {
+  description = "Starting last octet for CentOS IPs"
+  type        = number
+  default     = 35
 }
 
 variable "full_clone" {

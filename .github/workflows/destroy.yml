@@ -1,74 +1,20 @@
 name: Destroy Ansible ENV
 
 on:
-    workflow_dispatch:
-        inputs:
-            node_name:
-                description: "Proxmox node"
-                required: true
-                default: proxmox
+  workflow_dispatch:
+    inputs:
+      node_name:
+        description: "Proxmox node"
+        required: true
+        default: proxmox
 
 jobs:
-    destroy_env:
-        runs-on: self-hosted
+  destroy_env:
+    runs-on: self-hosted
 
-        steps:
-            ############################################################
-            # Setup SSH key (needed for destroy)
-            ############################################################
+    steps:
+      - name: Terraform Init
+        run: terraform init -upgrade -input=false
 
-            - name: Setup SSH key
-              run: |
-                  mkdir -p ~/.ssh
-                  echo "${{ secrets.PROXMOX_SSH_KEY }}" > ~/.ssh/id_ed25519
-                  chmod 600 ~/.ssh/id_ed25519
-                  ssh-keyscan -H ${{ secrets.PROXMOX_HOST }} >> ~/.ssh/known_hosts
-
-            ############################################################
-            # DESTROY ALL Ansible ENV VMs SAFELY
-            ############################################################
-
-            - name: Destroy Ansible ENV VMs
-              run: |
-
-                  for VM in ubuntu1 centos1
-                  do
-
-                    echo "Processing $VM"
-
-                    VMID=$(ssh -i ~/.ssh/id_ed25519 \
-                      -o StrictHostKeyChecking=no \
-                      ${{ secrets.PROXMOX_SSH_USER }}@${{ secrets.PROXMOX_HOST }} \
-                      "qm list | grep -w $VM | awk '{print \$1}'")
-
-                    if [ -z "$VMID" ]; then
-                      echo "$VM not found, skipping"
-                      continue
-                    fi
-
-                    echo "Stopping $VM (VMID=$VMID)"
-
-                    ssh -i ~/.ssh/id_ed25519 \
-                      -o StrictHostKeyChecking=no \
-                      ${{ secrets.PROXMOX_SSH_USER }}@${{ secrets.PROXMOX_HOST }} \
-                      "qm stop $VMID || true"
-
-                    sleep 5
-
-                    echo "Destroying $VM (VMID=$VMID)"
-
-                    ssh -i ~/.ssh/id_ed25519 \
-                      -o StrictHostKeyChecking=no \
-                      ${{ secrets.PROXMOX_SSH_USER }}@${{ secrets.PROXMOX_HOST }} \
-                      "qm destroy $VMID --purge"
-
-                    echo "$VM destroyed"
-
-                  done
-
-            ############################################################
-            # DONE
-            ############################################################
-
-            - name: Done
-              run: echo "Ansible ENV destruction completed successfully"
+      - name: Destroy Ansible ENV VMs
+        run: terraform destroy -auto-approve -input=false
