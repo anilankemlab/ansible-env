@@ -16,6 +16,16 @@ jobs:
       run:
         working-directory: ./Terraform
 
+    env:
+      TF_IN_AUTOMATION: true
+      TF_VAR_proxmox_api_url: ${{ secrets.PROXMOX_API_URL }}
+      TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+      TF_VAR_node_name: ${{ github.event.inputs.node_name }}
+      TF_VAR_proxmox_ssh_username: ${{ secrets.PROXMOX_SSH_USER }}
+      TF_VAR_proxmox_ssh_private_key: ${{ secrets.PROXMOX_SSH_KEY }}
+      TF_VAR_ubuntu_count: 0
+      TF_VAR_centos_count: 0
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
