@@ -58,6 +58,9 @@ jobs:
                   echo "[newvm]" > ../inventory.ini
                   terraform output -json ubuntu_vms | jq -r 'values[]' >> ../inventory.ini
                   terraform output -json centos_vms | jq -r 'values[]' >> ../inventory.ini
+                  echo "" >> ../inventory.ini
+                  echo "[newvm:vars]" >> ../inventory.ini
+                  echo "ansible_python_interpreter=/usr/bin/python3" >> ../inventory.ini
                   cat ../inventory.ini
 
             - name: Run Ansible Playbook
@@ -66,6 +69,12 @@ jobs:
               run: |
                   sleep 30
                   ansible-playbook -i ../inventory.ini ansible/bootstrap.yml --private-key ~/.ssh/id_ed25519 -u anilankem
+
+            - name: Upload State
+              uses: actions/upload-artifact@v4
+              with:
+                  name: tfstate
+                  path: Terraform/terraform.tfstate
 
             - name: Done
               run: echo "Ansible ENV creation completed successfully"

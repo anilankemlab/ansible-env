@@ -13,6 +13,12 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: Download State
+        uses: actions/download-artifact@v4
+        with:
+          name: tfstate
+          path: Terraform
+
       - name: Terraform Init
         run: terraform init -upgrade -input=false
 
