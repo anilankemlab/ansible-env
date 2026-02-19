@@ -7,6 +7,21 @@ data "proxmox_virtual_environment_vms" "template" {
   }
 }
 
+
+resource "proxmox_virtual_environment_file" "cloud_config" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = var.node_name
+
+  source_raw {
+    data = templatefile("cloud-init.tftpl", {
+      ssh_key_1 = file("~/.ssh/id_ed25519.pub")
+      ssh_key_2 = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC3WFjIYYt/8X6DdxPwnfeq5zlMu90SfYT781koCqOZ/lRvzolcjsYpDPmZbD2Lg3WTtLHSSCBK3/Qar5LHWj9JJlLj6F2B13GF1SNUawwE3aBEbwj1eoO4fnJJtfpOuSO869qzP5//okfnSIp+htL+UHWlDOg4aclcNhDxe/C5nDwMIVeX0h8P8HfZWPTHzTrRQW6Uh0U3YqAK0+MOFrYm17F3Y6ug6oMU30E3XBCro9TIiArtXy3ht1flWRYo/XlTe78UtEkDsB/ffi9XKF3o0XAP7g+77p0wTCh9CtPl3p/umriIVgZbbMl9+UNYz4ZHRLeE0nWzALBzo0rbG9L+y4Z4ml47bzSsD1/q93A3Zj9QSfL4Xc7sRbde2sg+eZJ7SG/bBqXMcSuJ+GYy/YSm0JEO24a3RM1yYnUkbJr0bKDkyWxtziLJ0J6LkNyNxBvc5aG9w9lDUDP5NUJSL5GnBpl44ryy8DYZjoxN/id5/re0v5HFbpFXr1PumVVu3Q9UeH34ZUEGqbiBPauNJMA4r4zqcPR0ayMCO9rYP/Ni8iz93OUBVyaHc8DOL4cWgk4NTI8uV90Yg02cGRB7ZvHdiyy7u46uBn1PM+UU+dpADpg7Y6oEw7y3Dh+UMgYNXqDUfsnV+UPpFNvGdTO+FwOMb8GlRZAvIRxqo5edTD3xMQ== root@Ansible"
+    })
+    file_name = "cloud-init-${var.vm_name}.yaml"
+  }
+}
+
 resource "proxmox_virtual_environment_vm" "vm_from_template" {
 
   name      = var.vm_name
@@ -48,18 +63,7 @@ resource "proxmox_virtual_environment_vm" "vm_from_template" {
   }
 
   initialization {
-
-
-    user_account {
-      username = "anilankem"
-      password = "anilankem"
-      keys = [
-        file("~/.ssh/id_ed25519.pub"),
-        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC3WFjIYYt/8X6DdxPwnfeq5zlMu90SfYT781koCqOZ/lRvzolcjsYpDPmZbD2Lg3WTtLHSSCBK3/Qar5LHWj9JJlLj6F2B13GF1SNUawwE3aBEbwj1eoO4fnJJtfpOuSO869qzP5//okfnSIp+htL+UHWlDOg4aclcNhDxe/C5nDwMIVeX0h8P8HfZWPTHzTrRQW6Uh0U3YqAK0+MOFrYm17F3Y6ug6oMU30E3XBCro9TIiArtXy3ht1flWRYo/XlTe78UtEkDsB/ffi9XKF3o0XAP7g+77p0wTCh9CtPl3p/umriIVgZbbMl9+UNYz4ZHRLeE0nWzALBzo0rbG9L+y4Z4ml47bzSsD1/q93A3Zj9QSfL4Xc7sRbde2sg+eZJ7SG/bBqXMcSuJ+GYy/YSm0JEO24a3RM1yYnUkbJr0bKDkyWxtziLJ0J6LkNyNxBvc5aG9w9lDUDP5NUJSL5GnBpl44ryy8DYZjoxN/id5/re0v5HFbpFXr1PumVVu3Q9UeH34ZUEGqbiBPauNJMA4r4zqcPR0ayMCO9rYP/Ni8iz93OUBVyaHc8DOL4cWgk4NTI8uV90Yg02cGRB7ZvHdiyy7u46uBn1PM+UU+dpADpg7Y6oEw7y3Dh+UMgYNXqDUfsnV+UPpFNvGdTO+FwOMb8GlRZAvIRxqo5edTD3xMQ== root@Ansible"
-      ]
-      sudo = true
-
-    }
+    user_data_file_id = proxmox_virtual_environment_file.cloud_config.id
 
     ip_config {
 

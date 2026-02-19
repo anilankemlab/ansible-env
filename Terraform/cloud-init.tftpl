@@ -1,0 +1,11 @@
+#cloud-config
+users:
+  - default
+  - name: anilankem
+    password: anilankem
+    groups: sudo
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh-authorized-keys:
+      - ${ssh_key_1}
+      - ${ssh_key_2}
