@@ -15,6 +15,7 @@ resource "proxmox_virtual_environment_file" "cloud_config" {
 
   source_raw {
     data = templatefile("cloud-init.tftpl", {
+      hostname  = var.vm_name
       ssh_key_1 = file("~/.ssh/id_ed25519.pub")
       ssh_key_2 = var.additional_ssh_public_key
     })
