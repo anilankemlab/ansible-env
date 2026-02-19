@@ -1,25 +1,152 @@
-name: Terraform Proxmox Test
+name: ansible env creating
 
 on:
   workflow_dispatch:
-  push:
+    inputs:
+      action:
+        description: "Action"
+        required: true
+        type: choice
+        options:
+          - create
+          - destroy
+
+      node_name:
+        description: "Proxmox node"
+        required: true
+        default: proxmox
 
 jobs:
-  terraform:
+  cluster:
     runs-on: self-hosted
 
     defaults:
       run:
         working-directory: ./Terraform
 
+    env:
+      TF_IN_AUTOMATION: true
+      TF_VAR_proxmox_api_url: ${{ secrets.PROXMOX_API_URL }}
+      TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+      TF_VAR_node_name: proxmox
+
     steps:
-      - uses: actions/checkout@v4
+      ############################################################
+      # Checkout repository
+      ############################################################
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Terraform Plan (Test API)
-        run: terraform plan
+      ############################################################
+      # Setup SSH key (needed for destroy)
+      ############################################################
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROXMOX_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          ssh-keyscan -H ${{ secrets.PROXMOX_HOST }} >> ~/.ssh/known_hosts
+
+      ############################################################
+      # Terraform init
+      ############################################################
+
+      - name: Terraform init
+        if: github.event.inputs.action == 'create'
+        run: terraform init -upgrade -input=false
+
+      ############################################################
+      # CREATE ubuntu VM (separate state)
+      ############################################################
+
+      - name: Create ubuntu VM
+        if: github.event.inputs.action == 'create'
+        run: terraform apply -auto-approve -input=false -state=ubuntu.tfstate
         env:
-          TF_VAR_proxmox_api_url: ${{ secrets.PROXMOX_API_URL }}
-          TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+          TF_VAR_vm_name: ubuntu1
+          TF_VAR_template_name: ubuntu24-golden
+          TF_VAR_vm_memory_mb: 2048
+          TF_VAR_disk_size_gb: 20
+          TF_VAR_ip_address: 192.168.1.30
+
+      ############################################################
+      # CREATE centos VM (separate state)
+      ############################################################
+
+      - name: Create centos VM
+        if: github.event.inputs.action == 'create'
+        run: terraform apply -auto-approve -input=false -state=centos.tfstate
+        env:
+          TF_VAR_vm_name: centos1
+          TF_VAR_template_name: centos10-stream-golden
+          TF_VAR_vm_memory_mb: 2048
+          TF_VAR_disk_size_gb: 20
+          TF_VAR_ip_address: 192.168.1.31
+
+      ############################################################
+      # RUN ANSIBLE PLAYBOOK
+      ############################################################
+
+      - name: Run Ansible Playbook
+        if: github.event.inputs.action == 'create'
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          echo "[newvm]" > inventory.ini
+          echo "192.168.1.30" >> inventory.ini
+          echo "192.168.1.31" >> inventory.ini
+          sleep 60
+          ansible-playbook -i inventory.ini ansible/bootstrap.yml --private-key ~/.ssh/id_ed25519 -u anilankem
+
+      ############################################################
+      # DESTROY ALL Ansible ENV VMs SAFELY
+      ############################################################
+
+      - name: Destroy Ansible ENV VMs
+        if: github.event.inputs.action == 'destroy'
+        run: |
+
+          for VM in master worker1 worker2
+          do
+
+            echo "Processing $VM"
+
+            VMID=$(ssh -i ~/.ssh/id_ed25519 \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.PROXMOX_SSH_USER }}@${{ secrets.PROXMOX_HOST }} \
+              "qm list | grep -w $VM | awk '{print \$1}'")
+
+            if [ -z "$VMID" ]; then
+              echo "$VM not found, skipping"
+              continue
+            fi
+
+            echo "Stopping $VM (VMID=$VMID)"
+
+            ssh -i ~/.ssh/id_ed25519 \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.PROXMOX_SSH_USER }}@${{ secrets.PROXMOX_HOST }} \
+              "qm stop $VMID || true"
+
+            sleep 5
+
+            echo "Destroying $VM (VMID=$VMID)"
+
+            ssh -i ~/.ssh/id_ed25519 \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.PROXMOX_SSH_USER }}@${{ secrets.PROXMOX_HOST }} \
+              "qm destroy $VMID --purge"
+
+            echo "$VM destroyed"
+
+          done
+
+      ############################################################
+      # DONE
+      ############################################################
+
+      - name: Done
+        run: echo "Ansible ENV operation completed successfully"
