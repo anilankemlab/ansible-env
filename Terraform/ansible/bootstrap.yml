@@ -1,0 +1,61 @@
+- name: Install basic packages on Linux VM
+  hosts: newvm
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    ##################################################
+    # Debian / Ubuntu
+    ##################################################
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install basic packages (Debian/Ubuntu)
+      apt:
+        name:
+          - unzip
+          - tar
+          - dnsutils # nslookup
+          - iputils-ping # ping
+          - traceroute
+          - curl
+          - wget
+          - vim
+          - net-tools
+        state: present
+      when: ansible_os_family == "Debian"
+
+    ##################################################
+    # CentOS / Rocky / AlmaLinux / RHEL
+    ##################################################
+
+    - name: Install basic packages (RedHat family)
+      dnf:
+        name:
+          - unzip
+          - tar
+          - bind-utils # nslookup
+          - iputils # ping
+          - traceroute
+          - curl
+          - wget
+          - vim
+          - net-tools
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    ##################################################
+    # Verify installation
+    ##################################################
+
+    - name: Verify nslookup
+      command: nslookup google.com
+      register: nslookup_test
+      changed_when: false
+
+    - name: Show nslookup result
+      debug:
+        var: nslookup_test.stdout_lines

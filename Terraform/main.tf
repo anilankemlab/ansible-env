@@ -57,7 +57,7 @@ resource "proxmox_virtual_environment_vm" "vm_from_template" {
         file("~/.ssh/id_ed25519.pub")
       ]
       sudo = true
-      
+
     }
 
     ip_config {
