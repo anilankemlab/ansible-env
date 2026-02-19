@@ -13,11 +13,8 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Download State
-        uses: actions/download-artifact@v4
-        with:
-          name: tfstate
-          path: Terraform
+      - name: Create State Directory
+        run: mkdir -p /home/ansible/terraform_state/ansible-env
 
       - name: Terraform Init
         run: terraform init -upgrade -input=false
