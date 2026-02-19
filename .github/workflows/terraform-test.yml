@@ -1,4 +1,4 @@
-name: ansible env creating
+name: ansible env
 
 on:
   workflow_dispatch:
