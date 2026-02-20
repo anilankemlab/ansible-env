@@ -16,25 +16,26 @@ on:
         required: true
         default: proxmox
 
-env:
-  TF_IN_AUTOMATION: true
-  TF_VAR_proxmox_api_url: ${{ secrets.PROXMOX_API_URL }}
-  TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
-  TF_VAR_node_name: ${{ github.event.inputs.node_name }}
-  TF_VAR_proxmox_ssh_username: ${{ secrets.PROXMOX_SSH_USER }}
-  TF_VAR_proxmox_ssh_private_key: ${{ secrets.PROXMOX_SSH_KEY }}
-  TF_VAR_ubuntu_count: ${{ github.event.inputs.ubuntu_count }}
-  TF_VAR_centos_count: ${{ github.event.inputs.centos_count }}
-
 jobs:
-  terraform:
-    name: 🖥 Terraform Init & Apply
+  create_env:
     runs-on: self-hosted
+
     defaults:
       run:
         working-directory: ./Terraform
+
+    env:
+      TF_IN_AUTOMATION: true
+      TF_VAR_proxmox_api_url: ${{ secrets.PROXMOX_API_URL }}
+      TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+      TF_VAR_node_name: ${{ github.event.inputs.node_name }}
+      TF_VAR_proxmox_ssh_username: ${{ secrets.PROXMOX_SSH_USER }}
+      TF_VAR_proxmox_ssh_private_key: ${{ secrets.PROXMOX_SSH_KEY }}
+      TF_VAR_ubuntu_count: ${{ github.event.inputs.ubuntu_count }}
+      TF_VAR_centos_count: ${{ github.event.inputs.centos_count }}
+
     steps:
-      - name: Checkout Repo
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup SSH key
@@ -48,21 +49,15 @@ jobs:
       - name: Create State Directory
         run: mkdir -p /home/ansible/terraform_state/ansible-env
 
-      - name: Terraform Init
+      - name: Terraform init
         run: terraform init -upgrade -input=false
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+        run: |
+          terraform apply -auto-approve -input=false
 
-  generate_inventory:
-    name: 📄 Generate Ansible Inventory
-    runs-on: self-hosted
-    needs: terraform
-    steps:
-      - uses: actions/checkout@v4
       - name: Generate Inventory
         run: |
-          cd Terraform
           echo "[newvm]" > ../inventory.ini
           terraform output -json ubuntu_vms | jq -r 'values[]' >> ../inventory.ini
           terraform output -json centos_vms | jq -r 'values[]' >> ../inventory.ini
@@ -71,24 +66,12 @@ jobs:
           echo "ansible_python_interpreter=/usr/bin/python3" >> ../inventory.ini
           cat ../inventory.ini
 
-  ansible_playbook:
-    name: ⚙️ Run Ansible Playbook
-    runs-on: self-hosted
-    needs: generate_inventory
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Playbook
+      - name: Run Ansible Playbook
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
         run: |
           sleep 30
-          ansible-playbook -i Terraform/../inventory.ini ansible/bootstrap.yml \
-            --private-key ~/.ssh/id_ed25519 -u anilankem
+          ansible-playbook -i ../inventory.ini ansible/bootstrap.yml --private-key ~/.ssh/id_ed25519 -u anilankem
 
-  done:
-    name: ✅ Completion
-    runs-on: self-hosted
-    needs: ansible_playbook
-    steps:
       - name: Done
         run: echo "Ansible ENV creation completed successfully"
