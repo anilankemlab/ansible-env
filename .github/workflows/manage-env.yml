@@ -1,10 +1,6 @@
 ﻿name: Manage Ansible ENV
 
 on:
-    push:
-        branches:
-            - dev
-
     workflow_dispatch:
         inputs:
             action:
@@ -16,11 +12,11 @@ on:
                     - Destroy
             ubuntu_count:
                 description: "Number of Ubuntu VMs (max 5)"
-                required: false
+                required: true
                 default: "1"
             centos_count:
                 description: "Number of CentOS VMs (max 5)"
-                required: false
+                required: true
                 default: "1"
             node_name:
                 description: "Proxmox node"
@@ -43,17 +39,10 @@ jobs:
             - name: Validate & Set Variables
               id: setvars
               run: |
-                  if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-                    ACTION="${{ github.event.inputs.action }}"
-                    UBUNTU="${{ github.event.inputs.ubuntu_count }}"
-                    CENTOS="${{ github.event.inputs.centos_count }}"
-                    NODE="${{ github.event.inputs.node_name }}"
-                  else
-                    ACTION="Create"
-                    UBUNTU=1
-                    CENTOS=1
-                    NODE="proxmox"
-                  fi
+                  ACTION="${{ github.event.inputs.action }}"
+                  UBUNTU="${{ github.event.inputs.ubuntu_count }}"
+                  CENTOS="${{ github.event.inputs.centos_count }}"
+                  NODE="${{ github.event.inputs.node_name }}"
 
                   if [[ "$ACTION" == "Destroy" ]]; then
                     UBUNTU=0
@@ -98,23 +87,13 @@ jobs:
             TF_VAR_centos_count: ${{ needs.Initialize.outputs.centos_count }}
 
         steps:
-            - name: Checkout repo
-              uses: actions/checkout@v4
+            - uses: actions/checkout@v4
 
             - name: Terraform Init
               run: terraform init -upgrade -input=false
 
             - name: Terraform Plan
-              run: |
-                  terraform plan -input=false -out=tfplan
-                  terraform show -no-color tfplan > tfplan.txt
-
-            - name: Post Plan to Summary
-              run: |
-                  echo "### Terraform Plan Summary (${{ needs.Initialize.outputs.action }})" >> $GITHUB_STEP_SUMMARY
-                  echo '```terraform' >> $GITHUB_STEP_SUMMARY
-                  cat tfplan.txt >> $GITHUB_STEP_SUMMARY
-                  echo '```' >> $GITHUB_STEP_SUMMARY
+              run: terraform plan -input=false
 
     Create-Apply:
         needs: [Initialize, Terraform-Plan]
@@ -134,49 +113,13 @@ jobs:
             TF_VAR_centos_count: ${{ needs.Initialize.outputs.centos_count }}
 
         steps:
-            - name: Checkout repo
-              uses: actions/checkout@v4
+            - uses: actions/checkout@v4
 
             - name: Terraform Init
               run: terraform init -upgrade -input=false
 
             - name: Terraform Apply
               run: terraform apply -auto-approve -input=false
-
-            - name: Generate Inventory
-              run: |
-                  echo "[newvm]" > ../inventory.ini
-                  terraform output -json ubuntu_vms | jq -r 'values[]' >> ../inventory.ini
-                  terraform output -json centos_vms | jq -r 'values[]' >> ../inventory.ini
-                  echo "" >> ../inventory.ini
-                  echo "[newvm:vars]" >> ../inventory.ini
-                  echo "ansible_python_interpreter=/usr/bin/python3" >> ../inventory.ini
-                  cat ../inventory.ini
-
-            - name: Upload Inventory
-              uses: actions/upload-artifact@v4
-              with:
-                  name: inventory
-                  path: inventory.ini
-
-    Provision-Ansible:
-        needs: Create-Apply
-        runs-on: self-hosted
-        steps:
-            - name: Checkout repo
-              uses: actions/checkout@v4
-
-            - name: Download Inventory
-              uses: actions/download-artifact@v4
-              with:
-                  name: inventory
-
-            - name: Run Ansible Playbook
-              env:
-                  ANSIBLE_HOST_KEY_CHECKING: "False"
-              run: |
-                  sleep 30
-                  ansible-playbook -i inventory.ini Terraform/ansible/bootstrap.yml --private-key ~/.ssh/id_ed25519 -u anilankem
 
     Destroy-Environment:
         needs: [Initialize, Terraform-Plan]
@@ -196,11 +139,10 @@ jobs:
             TF_VAR_centos_count: 0
 
         steps:
-            - name: Checkout repo
-              uses: actions/checkout@v4
+            - uses: actions/checkout@v4
 
             - name: Terraform Init
               run: terraform init -upgrade -input=false
 
-            - name: Destroy VMs
+            - name: Terraform Destroy
               run: terraform destroy -auto-approve -input=false
