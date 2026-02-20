@@ -1,9 +1,6 @@
 name: Manage Ansible ENV
 
 on:
-    push:
-        branches:
-            - dev
     workflow_dispatch:
         inputs:
             action:
