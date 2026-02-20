@@ -144,7 +144,7 @@ jobs:
                   ANSIBLE_HOST_KEY_CHECKING: "False"
               run: |
                   sleep 30
-                  ansible-playbook -i inventory.ini ansible/bootstrap.yml --private-key ~/.ssh/id_ed25519 -u anilankem
+                  ansible-playbook -i inventory.ini Terraform/ansible/bootstrap.yml --private-key ~/.ssh/id_ed25519 -u anilankem
 
     Destroy-Environment:
         needs: [Initialize, Terraform-Plan]
